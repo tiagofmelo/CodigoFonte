@@ -11,6 +11,7 @@ const int pinoLDR = A0;               // Pino analógico (realiza a leitura do s
 
 // Declaração de variáveis
 int valorSensor;
+char* statusIluminacao;
 
 void setup() {
 
@@ -56,7 +57,7 @@ void handle_OnConnect() {
   Serial.print("LDR: "); 
   Serial.println(valorSensor); // Imprime no monitor serial o valor da sendor lido no LDR
 
-  server.send(200, "text/html", EnvioHTML(valorSensor)); //Envia as informações usando o código 200, especifica o conteúdo como "text/html" e chama a função EnvioHTML
+  server.send(200, "text/html", EnvioHTML(statusIluminacao)); //Envia as informações usando o código 200, especifica o conteúdo como "text/html" e chama a função EnvioHTML
 
 }
 
@@ -72,18 +73,20 @@ void AcionamentoRele() {
   
   if (valorSensor < 1000) {         // Verifica se o valor está abaixo de 500
     digitalWrite(pinoRELE, HIGH);  // Se a condição for verdadeira, aciona o relé
+    statusIluminacao = "Apagada";
   } else {
     digitalWrite(pinoRELE, LOW);  // Se a condição for falsa, desaciona o relé
+    statusIluminacao = "Acesa";
   }
 
 }
 
-String EnvioHTML(int valorSensor) { // Exibindo a página da web em HTML
+String EnvioHTML(char* statusIluminacao) { // Exibindo a página da web em HTML
   String ptr = "<!DOCTYPE html> <html>\n"; // Indica o envio do código HTML
   ptr += "<head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, user-scalable=no\">\n"; //Torna a página da Web responsiva em qualquer navegador Web
   ptr += "<meta http-equiv='refresh' content='2'>"; // Atualizar browser a cada 2 segundos
   ptr += "<link href=\"https://fonts.googleapis.com/css?family=Open+Sans:300,400,600\" rel=\"stylesheet\">\n";
-  ptr += "<title>Monitor de Temperatura e Umidade</title>\n"; // Define o título da página
+  ptr += "<title>Monitorramento da Iluminacao</title>\n"; // Define o título da página
 
   // Configurações de fonte do título e do corpo do texto da página web
   ptr += "<style>html { font-family: 'Open Sans', sans-serif; display: block; margin: 0px auto; text-align: center;color: #000000;}\n";
@@ -99,7 +102,7 @@ String EnvioHTML(int valorSensor) { // Exibindo a página da web em HTML
 
   //Exibe as informações na página web
   ptr += "<p><b>A luz esta: </b>";
-  ptr += (int)valorSensor;
+  ptr += statusIluminacao;
 
   ptr += "</div>\n";
   ptr += "</body>\n";
