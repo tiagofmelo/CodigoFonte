@@ -14,10 +14,15 @@ const int mqtt_port = 1883;                      //Porta
 
 //Variáveis
 bool mqttStatus = 0;
+int valorSensor;
 
 //Objetos
 WiFiClient espClient;
 PubSubClient client(espClient);
+
+//Constantes
+const int pinoRELE = 16;              // Pino digital (realiza acionamento do relé)
+const int pinoLDR = A0;               // Pino analógico (realiza a leitura do sensor LDR)
 
 //Prototipos
 bool connectMQTT();
@@ -43,6 +48,9 @@ void setup(void) {
   Serial.println(WiFi.localIP());
 
   mqttStatus = connectMQTT();
+
+  pinMode(pinoRELE, OUTPUT);  // Define o pino de acionamento do relé como saída (output)
+  pinMode(pinoLDR, INPUT);    // Define o pino de leitura do sensor LDR como entrada (input)
 }
 
 void loop() {
@@ -53,7 +61,9 @@ void loop() {
 
     if (millis() > pooling + 1000) {
       pooling = millis();
-      client.publish(topic, "{teste123,113007042022}");
+
+      AcionamentoRele();
+      //client.publish(topic, "{teste123,113007042022}");
     }
   }
 }
@@ -83,7 +93,7 @@ bool connectMQTT() {
 
   if (tentativa < 5) {
     // publish and subscribe
-    client.publish(topic, "{teste123,113007042022}");
+    // client.publish(topic, "{teste123,113007042022}");
     client.subscribe(topic);
     return 1;
   } else {
@@ -101,4 +111,14 @@ void callback(char *topic, byte *payload, unsigned int length) {
   }
   Serial.println();
   Serial.println("-----------------------");
+}
+
+void AcionamentoRele() {
+  valorSensor = analogRead(pinoLDR);  // Faz a leitura do sensor LDR e armazena o valor na variável valorSensor
+
+  if (valorSensor > 1000) {       // Verifica se o valor está abaixo de 500
+    digitalWrite(pinoRELE, LOW);  // Se a condição for verdadeira, aciona o relé
+  } else {
+    digitalWrite(pinoRELE, HIGH);  // Se a condição for falsa, desaciona o relé
+  }
 }
