@@ -1,112 +1,104 @@
-//Inclusão de bibliotecas
-#include <ESP8266WiFi.h>       // Biblioteca para funcionamento do WiFi do ESP
-#include <ESP8266WebServer.h>  // Biblioteca para o ESP funcionar como servidor
+#include "ESP8266WiFi.h"
+#include <PubSubClient.h>
 
-//Declaração de constantes
-const char* ssid = "Melo";            // Rede WiFi
-const char* password = "124@124@me";  // Senha da Rede WiFi
-ESP8266WebServer server(80);          // Server na porta 80
-const int pinoRELE = 16;              // Pino digital (realiza acionamento do relé)
-const int pinoLDR = A0;               // Pino analógico (realiza a leitura do sensor LDR)
+//Parametros de conexão
+const char *ssid = "Melo";            // REDE
+const char *password = "124@124@me";  // SENHA
 
-// Declaração de variáveis
-int valorSensor;
-char* statusIluminacao;
+// MQTT Broker
+const char *mqtt_broker = "test.mosquitto.org";  //Host do broket
+const char *topic = "IoT/Iluminacao";            //Topico a ser subscrito e publicado
+const char *mqtt_username = "";                  //Usuario
+const char *mqtt_password = "";                  //Senha
+const int mqtt_port = 1883;                      //Porta
 
-void setup() {
+//Variáveis
+bool mqttStatus = 0;
 
-  Serial.begin(9600);    // Inicializa a comunicação serial com a taxa de 9600 bps
-  delay(50);             // Intervalo para aguardar a estabilização do sistema
+//Objetos
+WiFiClient espClient;
+PubSubClient client(espClient);
 
-  Serial.println("Conectando a Rede: ");  // Imprime na serial a mensagem
-  Serial.println(ssid);                   // Imprime na serial o nome da Rede Wi-Fi
+//Prototipos
+bool connectMQTT();
+void callback(char *topic, byte *payload, unsigned int length);
 
-  WiFi.begin(ssid, password);  // Inicialização da comunicação Wi-Fi
+void setup(void) {
+  Serial.begin(9600);
 
-  // Verificação da conexão
-  while (WiFi.status() != WL_CONNECTED) {  // Enquanto estiver aguardando status da conexão
-    delay(1000);
-    Serial.print(".");  // Imprime pontos
+  // Conectar
+  WiFi.begin(ssid, password);
+
+  //Aguardando conexão
+  Serial.println();
+  Serial.print("Conectando");
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
   }
   Serial.println("");
-  Serial.println("WiFi Conectado");
-  Serial.print("IP: ");
-  Serial.println(WiFi.localIP());  //Função para exibir o IP da ESP
+  Serial.println("WiFi connected");
 
-  server.on("/", handle_OnConnect);    // Servidor recebe uma solicitação HTTP - chama a função handle_OnConnect
-  server.onNotFound(handle_NotFound);  // Servidor recebe uma solicitação HTTP não especificada - chama a função handle_NotFound
+  //Envia IP através da UART
+  Serial.println(WiFi.localIP());
 
-  server.begin();  // Inicializa o servidor
-  Serial.println("Servidor HTTP inicializado");
-
-  pinMode(pinoRELE, OUTPUT);  // Define o pino de acionamento do relé como saída (output)
-  pinMode(pinoLDR, INPUT);    // Define o pino de leitura do sensor LDR como entrada (input)
-
+  mqttStatus = connectMQTT();
 }
 
 void loop() {
+  static long long pooling = 0;
+  if (mqttStatus) {
 
-  server.handleClient(); //Chama o método handleClient()
+    client.loop();
 
-}
-
-void handle_OnConnect() {
-
-  AcionamentoRele();
-
-  Serial.print("LDR: "); 
-  Serial.println(valorSensor); // Imprime no monitor serial o valor da sendor lido no LDR
-
-  server.send(200, "text/html", EnvioHTML(statusIluminacao)); //Envia as informações usando o código 200, especifica o conteúdo como "text/html" e chama a função EnvioHTML
-
-}
-
-void handle_NotFound() { //Função para lidar com o erro 404
-
-  server.send(404, "text/plain", "Não encontrado"); //Envia o código 404, especifica o conteúdo como "text/pain" e envia a mensagem "Não encontrado"
-
-}
-
-void AcionamentoRele() {
-
-  valorSensor = analogRead(pinoLDR);  // Faz a leitura do sensor LDR e armazena o valor na variável valorSensor
-  
-  if (valorSensor < 1000) {         // Verifica se o valor está abaixo de 500
-    digitalWrite(pinoRELE, HIGH);  // Se a condição for verdadeira, aciona o relé
-    statusIluminacao = "Apagada";
-  } else {
-    digitalWrite(pinoRELE, LOW);  // Se a condição for falsa, desaciona o relé
-    statusIluminacao = "Acesa";
+    if (millis() > pooling + 1000) {
+      pooling = millis();
+      client.publish(topic, "{teste123,113007042022}");
+    }
   }
-
 }
 
-String EnvioHTML(char* statusIluminacao) { // Exibindo a página da web em HTML
-  String ptr = "<!DOCTYPE html> <html>\n"; // Indica o envio do código HTML
-  ptr += "<head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, user-scalable=no\">\n"; //Torna a página da Web responsiva em qualquer navegador Web
-  ptr += "<meta http-equiv='refresh' content='2'>"; // Atualizar browser a cada 2 segundos
-  ptr += "<link href=\"https://fonts.googleapis.com/css?family=Open+Sans:300,400,600\" rel=\"stylesheet\">\n";
-  ptr += "<title>Monitorramento da Iluminacao</title>\n"; // Define o título da página
+bool connectMQTT() {
+  byte tentativa = 0;
+  client.setServer(mqtt_broker, mqtt_port);
+  client.setCallback(callback);
 
-  // Configurações de fonte do título e do corpo do texto da página web
-  ptr += "<style>html { font-family: 'Open Sans', sans-serif; display: block; margin: 0px auto; text-align: center;color: #000000;}\n";
-  ptr += "body{margin-top: 50px;}\n";
-  ptr += "h1 {margin: 50px auto 30px;}\n";
-  ptr += "h2 {margin: 40px auto 20px;}\n";
-  ptr += "p {font-size: 24px;color: #000000;margin-bottom: 10px;}\n";
-  ptr += "</style>\n";
-  ptr += "</head>\n";
-  ptr += "<body>\n";
-  ptr += "<div id=\"webpage\">\n";
-  ptr += "<h1>Controle da Iluminacao</h1>\n";
+  do {
+    String client_id = "BOBSIEN-";
+    client_id += String(WiFi.macAddress());
 
-  //Exibe as informações na página web
-  ptr += "<p><b>A luz esta: </b>";
-  ptr += statusIluminacao;
+    if (client.connect(client_id.c_str(), mqtt_username, mqtt_password)) {
+      Serial.println("Exito na conexão:");
+      Serial.printf("Cliente %s conectado ao broker\n", client_id.c_str());
+    } else {
+      Serial.print("Falha ao conectar: ");
+      Serial.print(client.state());
+      Serial.println();
+      Serial.print("Tentativa: ");
+      Serial.println(tentativa);
+      delay(2000);
+    }
+    tentativa++;
+  } while (!client.connected() && tentativa < 5);
 
-  ptr += "</div>\n";
-  ptr += "</body>\n";
-  ptr += "</html>\n";
-  return ptr;
+  if (tentativa < 5) {
+    // publish and subscribe
+    client.publish(topic, "{teste123,113007042022}");
+    client.subscribe(topic);
+    return 1;
+  } else {
+    Serial.println("Não conectado");
+    return 0;
+  }
+}
 
+void callback(char *topic, byte *payload, unsigned int length) {
+  Serial.print("Message arrived in topic: ");
+  Serial.println(topic);
+  Serial.print("Message:");
+  for (int i = 0; i < length; i++) {
+    Serial.print((char)payload[i]);
+  }
+  Serial.println();
+  Serial.println("-----------------------");
 }
