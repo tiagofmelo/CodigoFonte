@@ -1,5 +1,6 @@
 #include "ESP8266WiFi.h"
 #include <PubSubClient.h>
+#include <string>
 
 //Parametros de conexão
 const char *ssid = "Melo";            // REDE
@@ -15,14 +16,15 @@ const int mqtt_port = 1883;                      //Porta
 //Variáveis
 bool mqttStatus = 0;
 int valorSensor;
+String menssagemRecebida = "AUTO";
 
 //Objetos
 WiFiClient espClient;
 PubSubClient client(espClient);
 
 //Constantes
-const int pinoRELE = 16;              // Pino digital (realiza acionamento do relé)
-const int pinoLDR = A0;               // Pino analógico (realiza a leitura do sensor LDR)
+const int pinoRELE = 16;  // Pino digital (realiza acionamento do relé)
+const int pinoLDR = A0;   // Pino analógico (realiza a leitura do sensor LDR)
 
 //Prototipos
 bool connectMQTT();
@@ -63,7 +65,6 @@ void loop() {
       pooling = millis();
 
       AcionamentoRele();
-      //client.publish(topic, "{teste123,113007042022}");
     }
   }
 }
@@ -92,8 +93,6 @@ bool connectMQTT() {
   } while (!client.connected() && tentativa < 5);
 
   if (tentativa < 5) {
-    // publish and subscribe
-    // client.publish(topic, "{teste123,113007042022}");
     client.subscribe(topic);
     return 1;
   } else {
@@ -103,22 +102,39 @@ bool connectMQTT() {
 }
 
 void callback(char *topic, byte *payload, unsigned int length) {
-  Serial.print("Message arrived in topic: ");
+
+  Serial.print("Menssagem recebida no topic: ");
   Serial.println(topic);
-  Serial.print("Message:");
+  Serial.print("Menssagem:");
+
+  char buff_p[length];
   for (int i = 0; i < length; i++) {
-    Serial.print((char)payload[i]);
+    buff_p[i] = (char)payload[i];
   }
-  Serial.println();
-  Serial.println("-----------------------");
+
+  buff_p[length] = '\0';
+  menssagemRecebida = String(buff_p);
+
+  Serial.println(menssagemRecebida);
 }
 
 void AcionamentoRele() {
-  valorSensor = analogRead(pinoLDR);  // Faz a leitura do sensor LDR e armazena o valor na variável valorSensor
 
-  if (valorSensor > 1000) {       // Verifica se o valor está abaixo de 500
+  if (menssagemRecebida == "LIGA") {
     digitalWrite(pinoRELE, LOW);  // Se a condição for verdadeira, aciona o relé
-  } else {
-    digitalWrite(pinoRELE, HIGH);  // Se a condição for falsa, desaciona o relé
+  }
+
+  if (menssagemRecebida == "DESLIGA") {
+    digitalWrite(pinoRELE, HIGH);  // Se a condição for verdadeira, desaciona o relé
+  } 
+
+  if (menssagemRecebida == "AUTO") {
+    valorSensor = analogRead(pinoLDR);  // Faz a leitura do sensor LDR e armazena o valor na variável valorSensor
+
+    if (valorSensor > 1000) {       // Verifica se o valor está acima de 1000
+      digitalWrite(pinoRELE, LOW);  // Se a condição for verdadeira, aciona o relé
+    } else {
+      digitalWrite(pinoRELE, HIGH);  // Se a condição for falsa, desaciona o relé
+    }
   }
 }
